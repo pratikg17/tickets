@@ -1,60 +1,63 @@
 import request from 'supertest';
 import { app } from '../../app';
 import mongoose from 'mongoose';
+import { natsWrapper } from '../../nats-wrapper';
 
 it('returns a 404 if the provided id does not exist', async () => {
-  const id = mongoose.Types.ObjectId().toHexString();
+  const id = new mongoose.Types.ObjectId().toHexString();
   await request(app)
     .put(`/api/tickets/${id}`)
     .set('Cookie', global.signin())
     .send({
-      title: '1291',
+      title: 'aslkdfj',
       price: 20,
     })
     .expect(404);
 });
 
 it('returns a 401 if the user is not authenticated', async () => {
-  const id = mongoose.Types.ObjectId().toHexString();
+  const id = new mongoose.Types.ObjectId().toHexString();
   await request(app)
     .put(`/api/tickets/${id}`)
     .send({
-      title: '1291',
+      title: 'aslkdfj',
       price: 20,
     })
     .expect(401);
 });
 
-it('returns a 401 if the user does not own a ticket', async () => {
-  const repsonse = await request(app)
-    .post(`/api/tickets`)
+it('returns a 401 if the user does not own the ticket', async () => {
+  const response = await request(app)
+    .post('/api/tickets')
     .set('Cookie', global.signin())
     .send({
-      title: 'asashjasghjas',
+      title: 'asldkfj',
       price: 20,
     });
 
   await request(app)
-    .put(`/api/tickets/${repsonse.body.id}`)
+    .put(`/api/tickets/${response.body.id}`)
     .set('Cookie', global.signin())
     .send({
-      title: '121191',
-      price: 200,
+      title: 'alskdjflskjdf',
+      price: 1000,
     })
     .expect(401);
 });
 
-it('returns a 400 if the user provides an invalid ticket or price', async () => {
+it('returns a 400 if the user provides an invalid title or price', async () => {
   const cookie = global.signin();
-  const repsonse = await request(app)
-    .post(`/api/tickets`)
+
+  const response = await request(app)
+    .post('/api/tickets')
     .set('Cookie', cookie)
     .send({
-      title: 'asashjasghjas',
+      title: 'asldkfj',
       price: 20,
     });
+
   await request(app)
-    .put(`/api/tickets/${repsonse.body.id}`)
+    .put(`/api/tickets/${response.body.id}`)
     .set('Cookie', cookie)
     .send({
       title: '',
@@ -63,37 +66,62 @@ it('returns a 400 if the user provides an invalid ticket or price', async () => 
     .expect(400);
 
   await request(app)
-    .put(`/api/tickets/${repsonse.body.id}`)
+    .put(`/api/tickets/${response.body.id}`)
     .set('Cookie', cookie)
     .send({
-      title: 'saslkas',
-      price: -20,
+      title: 'alskdfjj',
+      price: -10,
     })
     .expect(400);
 });
 
-it('updates the tickets provided valid inputs', async () => {
+it('updates the ticket provided valid inputs', async () => {
   const cookie = global.signin();
-  const repsonse = await request(app)
-    .post(`/api/tickets`)
+
+  const response = await request(app)
+    .post('/api/tickets')
     .set('Cookie', cookie)
     .send({
-      title: 'asashjasghjas',
+      title: 'asldkfj',
       price: 20,
     });
+
   await request(app)
-    .put(`/api/tickets/${repsonse.body.id}`)
+    .put(`/api/tickets/${response.body.id}`)
     .set('Cookie', cookie)
     .send({
-      title: 'passed test',
-      price: 20,
+      title: 'new title',
+      price: 100,
     })
     .expect(200);
 
   const ticketResponse = await request(app)
-    .get(`/api/tickets/${repsonse.body.id}`)
+    .get(`/api/tickets/${response.body.id}`)
     .send();
 
-  expect(ticketResponse.body.title).toEqual('passed test');
-  expect(ticketResponse.body.price).toEqual(20);
+  expect(ticketResponse.body.title).toEqual('new title');
+  expect(ticketResponse.body.price).toEqual(100);
+});
+
+it('publishes an event', async () => {
+  const cookie = global.signin();
+
+  const response = await request(app)
+    .post('/api/tickets')
+    .set('Cookie', cookie)
+    .send({
+      title: 'asldkfj',
+      price: 20,
+    });
+
+  await request(app)
+    .put(`/api/tickets/${response.body.id}`)
+    .set('Cookie', cookie)
+    .send({
+      title: 'new title',
+      price: 100,
+    })
+    .expect(200);
+
+  expect(natsWrapper.client.publish).toHaveBeenCalled();
 });
