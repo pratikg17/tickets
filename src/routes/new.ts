@@ -1,6 +1,7 @@
 import { requireAuth, validateRequest } from '@pgticket/common';
 import express, { Request, Response } from 'express';
 import { body } from 'express-validator';
+import { TicketCreatedPublisher } from '../events/publisher/ticket-created-publisher';
 import { Ticket } from '../models/ticket';
 
 const router = express.Router();
@@ -25,6 +26,13 @@ router.post(
       userId: req.currentUser!.id,
     });
     await ticket.save();
+
+    new TicketCreatedPublisher(client).publish({
+      id: ticket.id,
+      title: ticket.title,
+      price: ticket.price,
+      userId: ticket.userId,
+    });
 
     res.status(201).send(ticket);
   }
